@@ -24,7 +24,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 
     // Pengajuan Ruang Rapat (create_booking)
-    Route::get('/ruang-rapat', [PemesananRuangRapatController::class, 'create'])
+    Route::get('/pemesanan-ruang-rapat', [PemesananRuangRapatController::class, 'create'])
         ->name('ruangrapat.create');
 
     Route::get('/pemesanan-ruang-rapat-available/', [PemesananRuangRapatController::class, 'getAvailableRooms'])

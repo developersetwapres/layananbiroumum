@@ -2,7 +2,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle } from 'lucide-react';
 
 type DangerAlertProps = {
-    message: string | Errors;
+    message: string | Error;
     show: boolean;
 };
 

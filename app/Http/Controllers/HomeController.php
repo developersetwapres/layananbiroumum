@@ -135,6 +135,104 @@ class HomeController extends Controller
         return Inertia::render('biroumum/home/page', compact('requestHistory'));
     }
 
+    public function admin()
+    {
+        $homeData = new PemesananRuangRapat();
+
+        $today = Carbon::today();
+
+        $dashboardStats = [
+            'roomBookings' => [
+                'title' => 'Pemesanan Ruangan',
+                'icon' => 'room',
+                'total' => PemesananRuangRapat::count(),
+                'pending' => PemesananRuangRapat::where('status', 'pending')->count(),
+                'todayBookings' => PemesananRuangRapat::whereDate('tanggal_penggunaan', $today)->count(),
+            ],
+            'damageReports' => [
+                'title' => 'Laporan Kerusakan',
+                'icon' => 'damage',
+                'total' => KerusakanGedung::count(),
+                'pending' => KerusakanGedung::where('status', 'pending')->count(),
+                'todayBookings' => KerusakanGedung::whereDate('created_at', $today)->count(),
+            ],
+            'suppliesRequests' => [
+                'title' => 'Permintaan ATK',
+                'icon' => 'supplies',
+                'total' => PermintaanAtk::count(),
+                'pending' => PermintaanAtk::where('status', 'pending')->count(),
+                'todayBookings' => PermintaanAtk::whereDate('created_at', $today)->count(),
+            ],
+        ];
+
+        $roomActivities = PemesananRuangRapat::with(['pemesan', 'ruangans'])
+            ->latest()
+            ->take(15)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'type' => 'room',
+                    'isRead' => $item->is_read,
+                    'title' => 'Permintaan ' . ($item->ruangans->nama_ruangan ?? '-'),
+                    'user' => ($item->pemesan->pegawai->name ?? '-') . ' - ' . ($item->pemesan->pegawai->biro->nama_biro ?? '-'),
+                    'time' => $item->created_at->diffForHumans(),
+                    'status' => $item->status,
+                    'created_at' => $item->created_at,
+                ];
+            });
+
+        $damageActivities = KerusakanGedung::with('pelapor')
+            ->latest()
+            ->take(15)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'type' => 'damage',
+                    'isRead' => $item->is_read,
+                    'title' => 'Kerusakan ' . $item->item . ' di ' . $item->lokasi,
+                    'user' => ($item->pelapor->pegawai->name ?? '-') . ' - ' . ($item->pelapor->pegawai->biro->nama_biro ?? '-'),
+                    'time' => $item->created_at->diffForHumans(),
+                    'status' => $item->status,
+                    'created_at' => $item->created_at,
+                ];
+            });
+
+        $suppliesActivities = PermintaanAtk::with('pemesan')
+            ->latest()
+            ->take(15)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'type' => 'supplies',
+                    'isRead' => $item->is_read,
+                    'title' => 'Permintaan ATK - ' . count($item->daftar_kebutuhan) . ' item',
+                    'user' => ($item->pemesan->pegawai->name ?? '-') . ' - ' . ($item->pemesan->pegawai->biro->nama_biro ?? '-'),
+                    'time' => $item->created_at->diffForHumans(),
+                    'status' => $item->status,
+                    'created_at' => $item->created_at,
+                ];
+            });
+
+        $recentActivities = collect()
+            ->merge($roomActivities)
+            ->merge($damageActivities)
+            ->merge($suppliesActivities)
+            ->sortByDesc('created_at')
+            ->take(6) // Ambil hanya 6 data terbaru
+            ->values();
+
+
+        // Jika pakai inertia
+        return Inertia::render('admin/page', [
+            'dashboardStats' => $dashboardStats,
+            'recentActivities' => $recentActivities,
+            'upcomingBookings' => $homeData->upcomingBookings(),
+        ]);
+    }
+
 
     public function history()
     {

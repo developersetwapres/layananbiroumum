@@ -17,7 +17,9 @@ export function KategoriSelector({
 }) {
     const [isExpanded, setIsExpanded] = useState(false);
 
-    const selectedKategori = kategoriList.find((k) => k.kode_kerusakan === selectedValue);
+    const selectedKategori = kategoriList.find(
+        (k) => k.kode_kerusakan === selectedValue,
+    );
 
     return (
         <div className="space-y-2">
@@ -37,27 +39,40 @@ export function KategoriSelector({
                             <Layers className="h-5 w-5" />
                         </div>
                         <div>
-                            <p className="font-semibold text-blue-700">{selectedKategori.name}</p>
-                            <p className="text-xs text-muted-foreground">Kode kategori: {selectedKategori.kode_kerusakan}</p>
+                            <p className="font-semibold text-blue-700">
+                                {selectedKategori.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                                Kode kategori: {selectedKategori.kode_kerusakan}
+                            </p>
                         </div>
                     </div>
                 ) : (
                     <div className="flex items-center gap-2 text-muted-foreground">
                         <Layers className="h-4 w-4" />
-                        <span className="text-sm">Pilih kategori kerusakan...</span>
+                        <span className="text-sm">
+                            Pilih kategori kerusakan...
+                        </span>
                     </div>
                 )}
-                {isExpanded ? <ChevronUp className="h-5 w-5 text-blue-600" /> : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
+                {isExpanded ? (
+                    <ChevronUp className="h-5 w-5 text-blue-600" />
+                ) : (
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                )}
             </button>
 
             {/* Expandable list */}
             <div
-                className={`overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'} `}
+                className={`overflow-hidden transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-150 opacity-100' : 'max-h-0 opacity-0'} `}
             >
-                <div className="max-h-[550px] space-y-2 overflow-y-auto pt-1 pr-1">
+                <div className="max-h-137.5 space-y-2 overflow-y-auto pt-1 pr-1">
                     {kategoriList.map((item) => {
-                        const isSelected = selectedValue === item.kode_kerusakan;
-                        const hasSubKategori = item.sub_kategori && item.sub_kategori.filter((s) => s).length > 0;
+                        const isSelected =
+                            selectedValue === item.kode_kerusakan;
+                        const hasSubKategori =
+                            item.sub_kategori &&
+                            item.sub_kategori.filter((s) => s).length > 0;
 
                         return (
                             <div
@@ -89,9 +104,16 @@ export function KategoriSelector({
                                         <Layers className="h-6 w-6" />
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <h4 className={`text-base font-bold ${isSelected ? 'text-blue-700' : 'text-foreground'}`}>{item.name}</h4>
+                                        <h4
+                                            className={`text-base font-bold ${isSelected ? 'text-blue-700' : 'text-foreground'}`}
+                                        >
+                                            {item.name}
+                                        </h4>
                                         <p className="text-xs text-muted-foreground">
-                                            Kode: <span className="font-medium">{item.kode_kerusakan}</span>
+                                            Kode:{' '}
+                                            <span className="font-medium">
+                                                {item.kode_kerusakan}
+                                            </span>
                                         </p>
                                     </div>
                                 </div>
@@ -120,7 +142,9 @@ export function KategoriSelector({
                                 {/* Empty state for no sub categories */}
                                 {!hasSubKategori && (
                                     <div className="mt-3 pl-15">
-                                        <p className="text-xs text-muted-foreground/70 italic">Tidak ada sub-kategori</p>
+                                        <p className="text-xs text-muted-foreground/70 italic">
+                                            Tidak ada sub-kategori
+                                        </p>
                                     </div>
                                 )}
                             </div>
