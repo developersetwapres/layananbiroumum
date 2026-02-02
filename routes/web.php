@@ -46,6 +46,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/permintaan-atk/store', [PermintaanAtkController::class, 'store'])
         ->name('permintaanatk.store');
+
+
+    //---------------------------------------DASHBOARD --------------------------------
+    //---------------------------------------------------------------------------------
+
+    // Dashboard admin (view_admin_dashboard)
+    Route::get('/dashboard', [HomeController::class, 'admin'])
+        ->name('dashboard');
 });
 
 require __DIR__ . '/settings.php';
