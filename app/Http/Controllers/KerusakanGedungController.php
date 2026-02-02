@@ -5,23 +5,36 @@ namespace App\Http\Controllers;
 use App\Models\KerusakanGedung;
 use App\Http\Requests\StoreKerusakanGedungRequest;
 use App\Http\Requests\UpdateKerusakanGedungRequest;
+use App\Models\KategoriKerusakan;
+use App\Models\Notification;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
+use Inertia\Inertia;
+use Inertia\Response;
 
 class KerusakanGedungController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(): Response
     {
-        //
+        $data = [
+            'kerusakan' => KerusakanGedung::with('pelapor.pegawai')->with('kategori')->latest()->paginate(50)
+        ];
+
+        return Inertia::render('admin/damages/page', $data);
     }
 
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(): Response
     {
-        //
+        return Inertia::render('biroumum/damage/page', [
+            'kategoriKerusakan' => KategoriKerusakan::all(),
+        ]);
     }
 
     /**
@@ -29,7 +42,48 @@ class KerusakanGedungController extends Controller
      */
     public function store(StoreKerusakanGedungRequest $request)
     {
-        //
+        $photoPaths = [];
+
+        foreach ($request->photos as $photo) {
+            $mime = $photo->getMimeType();
+            if (str_starts_with($mime, 'image/')) {
+                $path = $photo->store('images/kerusakan-gedung', 'public');
+            } elseif (str_starts_with($mime, 'video/')) {
+                $path = $photo->store('video/kerusakan-gedung', 'public');
+            }
+            $photoPaths[] = $path;
+        }
+
+        $idKat  = KategoriKerusakan::where('kode_kerusakan', $request->kategori)->value('id');
+
+        $laporan = KerusakanGedung::create([
+            'user_id' => Auth::id(),
+            'kode_unit' => Auth::user()->pegawai?->unit?->kode_unit,
+            'kategori_kerusakan_id' => $idKat,
+            'lokasi' => $request->location,
+            'item' => $request->damageType,
+            'deskripsi' => $request->description,
+            'picture' => $photoPaths,
+            'urgensi' => null,
+            'kode_pelaporan' => 'KGD-' . now()->format('md') . '-' . strtoupper(Str::random(3)),
+            'no_hp' => $request->contact,
+            'status' => 'pending',
+        ]);
+
+        $pegawai = $laporan->pelapor->pegawai;
+        $message = "Laporan kerusakan gedung oleh {$pegawai->name} ({$pegawai->jabatan}) memerlukan peninjauan.";
+
+        // Buat notifikasi
+        Notification::create([
+            'kode_unit'   => $laporan->kode_unit,
+            'permissions' => ['view_damages'],
+            'type'        => 'new',
+            'category'    => 'damage',
+            'title'       => 'Laporan Kerusakan Gedung Baru',
+            'message'     =>  $message,
+            'priority'    => 'medium',
+            'action_url'  => route('kerusakangedung.show', $laporan->kode_pelaporan, false),
+        ]);
     }
 
     /**
@@ -37,7 +91,13 @@ class KerusakanGedungController extends Controller
      */
     public function show(KerusakanGedung $kerusakanGedung)
     {
-        //
+        $kerusakanGedung->update(([
+            'is_read' => true
+        ]));
+
+        return Inertia::render('admin/damages/review', [
+            'selectedDamage' => $kerusakanGedung->load('kategori', 'pelapor.pegawai.biro', 'logProgres'),
+        ]); //
     }
 
     /**
@@ -61,6 +121,53 @@ class KerusakanGedungController extends Controller
      */
     public function destroy(KerusakanGedung $kerusakanGedung)
     {
-        //
+        $kerusakanGedung->delete();
+    }
+
+    public function status(KerusakanGedung $kerusakanGedung, Request $request)
+    {
+        $validated = $request->validate([
+            'action' => 'required|in:pending,process,confirmed,cancelled',
+            'message' => 'required_if:action,cancelled|string|max:255',
+        ]);
+
+        $status = $validated['action'] === 'process' ? 'process' : 'confirmed';
+
+        $updateData = collect([
+            'status' => $status,
+        ]);
+
+        if (isset($validated['message'])) {
+            $updateData->put('keterangan', $validated['message']);
+        }
+
+        $kerusakanGedung->update($updateData->all());
+    }
+
+    public function reports()
+    {
+        $reportsData = new KerusakanGedung();
+
+        $data = [
+            'summaryData' =>  $reportsData->summaryData(),
+            'locationData' =>  $reportsData->locationData(),
+            'statusDistribution' =>  $reportsData->statusDistribution(),
+            'damageTypeData' =>  $reportsData->damageTypeData(),
+            'urgencyData' =>  $reportsData->urgencyData(),
+            'topReportersData' =>  $reportsData->reporterStats()['topReportersData'],
+            'divisionReports' =>  $reportsData->reporterStats()['divisionReports'],
+            'monthlyTrend' => $reportsData->monthlyTrends(),
+        ];
+
+        return Inertia::render('admin/reportsdamages/page', $data);
+    }
+
+    public function urgensi(KerusakanGedung $kerusakanGedung, Request $request)
+    {
+        $validated = $request->validate([
+            'urgensi' => 'required|in:tinggi,rendah',
+        ]);
+
+        $kerusakanGedung->update($validated);
     }
 }

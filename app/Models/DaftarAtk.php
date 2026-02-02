@@ -1,0 +1,44 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
+use App\Models\Scopes\InstansiScope;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
+
+#[ScopedBy([InstansiScope::class])]
+
+class DaftarAtk extends Model
+{
+    /** @use HasFactory<\Database\Factories\DaftarAtkFactory> */
+    use HasFactory;
+
+    protected $fillable = [
+        'name',
+        'instansi_id',
+        'kode_atk',
+        'category',
+        'satuan',
+        'kode_unit',
+        'quantity',
+    ];
+
+    protected static function booted()
+    {
+        static::creating(function ($layanan) {
+            do {
+                $random = strtoupper(Str::random(5));
+                $code = 'ATK-' . $random;
+            } while (self::where('kode_atk', $code)->exists());
+
+            $layanan->kode_atk = $code;
+        });
+    }
+
+    public function stockOpnames()
+    {
+        return $this->hasMany(StockOpname::class);
+    }
+}

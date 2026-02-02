@@ -19,9 +19,12 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
+        'master_pegawai_id',
+        'nip',
+        'nip_sso',
+        'is_ldap',
         'email',
-        'password',
+        'password'
     ];
 
     /**
@@ -48,5 +51,15 @@ class User extends Authenticatable
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    public function pegawai()
+    {
+        return $this->belongsTo(MasterPegawai::class, 'nip', 'nip');
+    }
+
+    public function getKodeUnitAttribute()
+    {
+        return $this->pegawai?->unit?->kode_unit;
     }
 }

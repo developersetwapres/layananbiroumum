@@ -120,6 +120,8 @@ class HomeController extends Controller
 
         // Gabungkan semuanya, urutkan, batasi 10
     }
+
+
     public function index()
     {
 

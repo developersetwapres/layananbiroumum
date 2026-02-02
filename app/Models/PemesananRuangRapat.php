@@ -4,9 +4,444 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Scopes\InstansiScope;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Attributes\ScopedBy;
 
+#[ScopedBy([InstansiScope::class])]
 class PemesananRuangRapat extends Model
 {
     /** @use HasFactory<\Database\Factories\PemesananRuangRapatFactory> */
     use HasFactory;
+
+    protected $fillable = [
+        'user_id',
+        'kode_unit',
+        'tanggal_penggunaan',
+        'jam_mulai',
+        'jam_selesai',
+        'daftar_ruangan_id',
+        'deskripsi',
+        'jumlah_peserta',
+        'no_hp',
+        'kode_booking',
+        'status',
+        'keterangan',
+        'aproved_makanan_berat',
+        'aproved_makanan_ringan',
+        'is_makanan_ringan',
+        'is_makanan_berat',
+        'is_hybrid',
+        'is_ti_support',
+        'jenis_rapat',
+        'is_read',
+    ];
+
+    public function ruangans(): BelongsTo
+    {
+        return $this->belongsTo(DaftarRuangan::class, 'daftar_ruangan_id');
+    }
+
+    public function pemesan(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function weeklySchedule()
+    {
+        $daysMap = [
+            'monday' => 1,
+            'tuesday' => 2,
+            'wednesday' => 3,
+            'thursday' => 4,
+            'friday' => 5,
+            'saturday' => 6,
+            'sunday' => 7,
+        ];
+
+        $startOfWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $endOfWeek = Carbon::now()->endOfWeek(Carbon::SUNDAY);
+
+        $bookings = $this->with(['pemesan', 'ruangans'])
+            ->where('status', 'booked')
+            ->whereBetween('tanggal_penggunaan', [$startOfWeek, $endOfWeek])
+            ->get();
+
+        $rooms = $bookings->groupBy('ruangans.nama_ruangan');
+
+        $result = [];
+
+        foreach ($rooms as $roomName => $roomBookings) {
+            $weeklyData = collect($daysMap)->mapWithKeys(fn($v, $day) => [$day => []]);
+
+            foreach ($roomBookings as $booking) {
+                $dayKey = array_search(Carbon::parse($booking->tanggal_penggunaan)->dayOfWeekIso, $daysMap);
+
+                $dayBookings = $weeklyData->get($dayKey, []);
+                $dayBookings[] = [
+                    'time' => Carbon::parse($booking->jam_mulai)->format('H:i') . ' - ' . Carbon::parse($booking->jam_selesai)->format('H:i'),
+                    'user' => $booking->pemesan?->pegawai?->name ?? '-',
+                    'purpose' => $booking->deskripsi,
+                ];
+                $weeklyData->put($dayKey, $dayBookings);
+            }
+
+            $result[] = [
+                'room' => $roomName,
+                'bookings' => $weeklyData,
+            ];
+        }
+
+        return $result;
+    }
+
+    public function summaryData(): array
+    {
+        // Total data all time
+        $totalAllTime = $this->count();
+        $totalBooked = $this->where('status', 'booked')->count();
+        $totalRejected = $this->where('status', 'rejected')->count();
+
+        // Hitung change dan trend
+        return  [
+            'totalBookings' => [
+                'value' => $totalAllTime,
+                'title' => 'Total Pemesanan',
+            ],
+            'booked' => [
+                'value' => $totalBooked,
+                'title' => 'Telah dipesan',
+            ],
+            'rejected' => [
+                'value' => $totalRejected,
+                'title' => 'Ditolak',
+            ],
+
+        ];
+    }
+
+    public function peakHours()
+    {
+        // Pakai array biasa
+        $hours = [];
+        foreach (range(7, 17) as $h) {
+            $hours[str_pad($h, 2, '0', STR_PAD_LEFT) . ':00'] = 0;
+        }
+
+        $bookings = $this->all(['jam_mulai', 'jam_selesai']);
+
+        foreach ($bookings as $booking) {
+            $start = Carbon::parse($booking->jam_mulai);
+            $end = Carbon::parse($booking->jam_selesai);
+
+            while ($start < $end) {
+                $hourKey = $start->format('H:00');
+                if (isset($hours[$hourKey])) {
+                    $hours[$hourKey]++;
+                }
+                $start->addHour();
+            }
+        }
+
+        // Kembalikan dalam format collection untuk FE
+        return collect($hours)->map(function ($count, $hour) {
+            return [
+                'hour' => $hour,
+                'bookings' => $count,
+            ];
+        })->values();
+    }
+
+    public function weeklyPattern()
+    {
+        // Inisialisasi hari Senin–Minggu
+        $hari = [
+            'Senin' => 0,
+            'Selasa' => 0,
+            'Rabu' => 0,
+            'Kamis' => 0,
+            'Jumat' => 0,
+            'Sabtu' => 0,
+            'Minggu' => 0,
+        ];
+
+        $data = $this->all(['tanggal_penggunaan']);
+
+        foreach ($data as $item) {
+            $tanggal = Carbon::parse($item->tanggal_penggunaan);
+            $namaHari = $tanggal->translatedFormat('l'); // Misalnya "Monday"
+            $indoHari = match ($namaHari) {
+                'Monday' => 'Senin',
+                'Tuesday' => 'Selasa',
+                'Wednesday' => 'Rabu',
+                'Thursday' => 'Kamis',
+                'Friday' => 'Jumat',
+                'Saturday' => 'Sabtu',
+                'Sunday' => 'Minggu',
+            };
+            $hari[$indoHari]++;
+        }
+
+        return collect($hari)->map(function ($count, $day) {
+            return [
+                'day' => $day,
+                'bookings' => $count,
+            ];
+        })->values();
+    }
+
+    public function monthlyTrend()
+    {
+        $bulan = [
+            1 => 'Jan',
+            2 => 'Feb',
+            3 => 'Mar',
+            4 => 'Apr',
+            5 => 'Mei',
+            6 => 'Jun',
+            7 => 'Jul',
+            8 => 'Agu',
+            9 => 'Sep',
+            10 => 'Okt',
+            11 => 'Nov',
+            12 => 'Des',
+        ];
+
+        $data = $this->all(['tanggal_penggunaan', 'status']);
+
+        // Awal tahun hingga akhir bulan sekarang
+        $grouped = $data->groupBy(function ($item) {
+            return Carbon::parse($item->tanggal_penggunaan)->month;
+        });
+
+        $result = [];
+
+        // foreach (range(1, 12) as $i) {
+        foreach (range(1, now()->month) as $i) {
+
+            $records = $grouped[$i] ?? collect();
+            $bookings = $records->count();
+            $booked = $records->where('status', 'booked')->count();
+            $rejected = $records->where('status', 'rejected')->count();
+
+            $result[] = [
+                'month' => $bulan[$i],
+                'bookings' => $bookings,
+                'booked' => $booked,
+                'rejected' => $rejected,
+            ];
+        }
+
+        return collect($result);
+    }
+
+    public function topUsers($limit = 7)
+    {
+        $data = $this->with('pemesan.pegawai.biro')
+            ->whereNotNull('user_id')
+            ->get()
+            ->groupBy('user_id')
+            ->map(function ($items) {
+                $user = $items->first()->pemesan;
+                $bookings = $items->count();
+
+                // Hitung total jam
+                $hours = $items->sum(function ($item) {
+                    $start = Carbon::parse($item->jam_mulai);
+                    $end = Carbon::parse($item->jam_selesai);
+                    return abs($start->floatDiffInHours($end));
+                });
+
+
+                return [
+                    'name' => $user?->pegawai?->name,
+                    'division' => $user?->pegawai?->biro?->nama_biro,
+                    'bookings' => $bookings,
+                    'hours' => round($hours),
+                    'avgDuration' => round($hours / $bookings, 1),
+                ];
+            })
+            ->sortByDesc('bookings')
+            ->take($limit)
+            ->values();
+
+        return $data;
+    }
+
+    public function divisionUsage()
+    {
+        $data = $this
+            ->whereNotNull('user_id')
+            ->with('pemesan.pegawai.biro')
+            ->get();
+
+        $grouped = $data->groupBy(fn($item) => $item->pemesan->pegawai?->biro?->nama_biro);
+
+        $result = $grouped->map(function ($items, $division) {
+            $bookings = $items->count();
+
+            $hours = $items->sum(function ($item) {
+                $start = Carbon::parse($item->jam_mulai);
+                $end = Carbon::parse($item->jam_selesai);
+                return abs($start->floatDiffInHours($end));
+            });
+
+
+            return [
+                'division' => $division,
+                'bookings' => $bookings,
+                'hours' => round($hours),
+            ];
+        });
+
+        return $result->sortByDesc('bookings')->values();
+    }
+
+    public function penggunaanRuangan()
+    {
+        $data = $this->with('ruangans')
+            ->whereNotNull('daftar_ruangan_id')
+            ->get();
+
+        // Group by ruangan
+        $grouped = $data->groupBy('daftar_ruangan_id');
+
+        // Total bookings dari semua ruangan
+        $totalBookings = $data->count();
+
+        $result = $grouped->map(function ($items) use ($totalBookings) {
+            $room = $items->first()->ruangans;
+            $bookings = $items->count();
+
+            $hours = $items->sum(function ($item) {
+                $start = Carbon::parse($item->jam_mulai);
+                $end = Carbon::parse($item->jam_selesai);
+                return abs($start->floatDiffInHours($end));
+            });
+
+
+            $percent = $totalBookings > 0 ? round(($bookings / $totalBookings) * 100) : 0;
+
+            return [
+                'room' => $room->nama_ruangan,
+                'bookings' => $bookings,
+                'hours' => round($hours),
+                'percent' => $percent,
+                'capacity' => $room->kapasitas,
+            ];
+        });
+
+        return $result->sortByDesc('bookings')->values();
+    }
+
+    public function statusDistribution()
+    {
+        return [
+            [
+                'name'  => 'Telah dipesan',
+                'value' => $this->where('status', 'booked')->count(),
+                'color' => '#10b981',
+            ],
+            [
+                'name'  => 'Ditolak',
+                'value' => $this->where('status', 'rejected')->count(),
+                'color' => '#ef4444',
+            ],
+        ];
+    }
+
+    public function upcomingBookings()
+    {
+
+        $today = Carbon::today();
+        $daysLater = Carbon::today()->addDays(5);
+
+        $upcomingBookings = $this->with(['ruangans', 'pemesan'])
+            ->whereBetween('tanggal_penggunaan', [$today, $daysLater])
+            ->where('status', 'booked') // Optional: hanya ambil yang sudah dikonfirmasi
+            ->orderBy('tanggal_penggunaan')
+            ->orderBy('jam_mulai')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'room' => $item->ruangans->nama_ruangan ?? '-',
+                    'user' => $item->pemesan?->pegawai?->biro?->nama_biro ?? '-',
+                    'date' => Carbon::parse($item->tanggal_penggunaan)->isTomorrow()
+                        ? 'Besok'
+                        : Carbon::parse($item->tanggal_penggunaan)->translatedFormat('d M Y'),
+                    'time' => Carbon::parse($item->jam_mulai)->format('H:i') . ' - ' . Carbon::parse($item->jam_selesai)->format('H:i'),
+                    'purpose' => $item->deskripsi,
+                ];
+            });
+
+        return $upcomingBookings;
+    }
+
+    public function availableRooms($request)
+    {
+        $result = [];
+
+        if ($request->filled(['tanggal', 'jam_mulai', 'jam_selesai'])) {
+            $validated = $request->validate([
+                'tanggal'     => 'required|date',
+                'jam_mulai'   => 'required|date_format:H:i',
+                'jam_selesai' => 'required|date_format:H:i',
+            ]);
+
+            $tanggal    = $validated['tanggal'];
+            $jamMulai   = $validated['jam_mulai'];
+            $jamSelesai = $validated['jam_selesai'];
+
+            // Cek apakah jam_mulai < jam_selesai
+            if (Carbon::parse($jamMulai)->gte(Carbon::parse($jamSelesai))) {
+                return [
+                    'tersedia' => $result,
+                ];
+            }
+
+            // Ambil ruangan
+            $ruangans = DaftarRuangan::select([
+                'id',
+                'nama_ruangan',
+                'kode_ruangan',
+                'lokasi',
+                'kapasitas',
+                'kapasitas_max',
+                'image',
+                'fasilitas',
+            ])->where('status', 'aktif')->get();
+
+            // Ambil booking yang bentrok
+            $bookings = $this->where('tanggal_penggunaan', $tanggal)
+                ->where('jam_mulai', '<', $jamSelesai)
+                ->where('jam_selesai', '>', $jamMulai)
+                ->whereIn('status', ['pending', 'booked'])
+                ->get();
+
+            // Proses ketersediaan tiap ruangan
+            $result = $ruangans->map(function ($r) use ($bookings) {
+                $myBookings = $bookings->where('daftar_ruangan_id', $r->id);
+                $slots = $myBookings->map(function ($b) {
+                    return Carbon::parse($b->jam_mulai)->format('H:i') . ' - ' . Carbon::parse($b->jam_selesai)->format('H:i');
+                })->values()->all();
+
+                return [
+                    'id'           => $r->kode_ruangan,
+                    'nama_ruangan' => $r->nama_ruangan,
+                    'kode_ruangan' => $r->kode_ruangan,
+                    'kapasitas'    => $r->kapasitas,
+                    'kapasitas_max'    => $r->kapasitas_max,
+                    'lokasi'       => $r->lokasi,
+                    'status'       => count($slots) ? 'booked' : 'available',
+                    'bookedSlots'  => $slots,
+                    'image'        => $r->image,
+                    'facilities'   => $r->fasilitas,
+                ];
+            });
+        }
+
+        return $result;
+    }
 }

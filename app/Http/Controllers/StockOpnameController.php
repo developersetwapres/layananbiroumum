@@ -1,0 +1,211 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\StockOpname;
+use App\Http\Requests\StoreStockOpnameRequest;
+use App\Http\Requests\UpdateStockOpnameRequest;
+use App\Models\DaftarAtk;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
+use Illuminate\Support\Facades\DB;
+use Inertia\Response;
+
+class StockOpnameController extends Controller
+{
+    /**
+     * Display a listing of the resource.
+     */
+    public function index(): Response
+    {
+        $data = [
+            'daftarAtk' => DaftarAtk::orderBy('name', 'asc')->get(),
+            'stockOpnames' => StockOpname::with('daftarAtk')
+                ->orderBy('created_at', 'desc')      // urut kronologis
+                ->orderBy('id', 'desc')              // safety
+                // ->latest()
+                ->get()
+        ];
+
+        return Inertia::render('admin/daftaratk/prolehan-pemakaian', $data);
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create()
+    {
+        //
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(StoreStockOpnameRequest $request)
+    {
+        $validated = $request->validate([
+            'daftar_atk_id' => ['required', 'exists:daftar_atks,id'],
+            'quantity' => ['required', 'integer', 'min:1'],
+            'unit_price' => ['required', 'integer', 'min:0'],
+            'permintaan_atk_id' => ['nullable', 'exists:permintaan_atks,id'],
+            // optional: kode_unit dapat dikirim FE, kalau tidak kita ambil dari auth
+            'kode_unit' => ['nullable', 'string'],
+        ]);
+
+        // normalisasi nilai
+        $quantity = (int) $validated['quantity'];
+        $unitPrice = (int) $validated['unit_price'];
+        $totalPrice = $quantity * $unitPrice;
+
+        $kodeUnit = $validated['kode_unit'] ?? Auth::user()->pegawai?->unit?->kode_unit ?? null;
+
+        DB::transaction(function () use ($validated, $quantity, $unitPrice, $totalPrice, $kodeUnit) {
+            $stock = StockOpname::create([
+                'kode_unit' => $kodeUnit,
+                'daftar_atk_id' => $validated['daftar_atk_id'],
+                'quantity' => $quantity,
+                'remaining_quantity' => $quantity, // untuk Perolehan kita set remaining = quantity
+                'type' => 'Perolehan',
+                'permintaan_atk_id' => $validated['permintaan_atk_id'] ?? null,
+                'source_stockopname_id' => null,
+                'unit_price' => $unitPrice,
+                'total_price' => $totalPrice,
+            ]);
+
+            // update stok di DaftarAtk (naik)
+            $daftar = DaftarAtk::find($validated['daftar_atk_id']);
+            if ($daftar) {
+                $daftar->increment('quantity', $quantity);
+            }
+        });
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show(StockOpname $stockOpname)
+    {
+        //
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit(StockOpname $stockOpname)
+    {
+        //
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(UpdateStockOpnameRequest $request, StockOpname $stockOpname)
+    {
+        //
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy(StockOpname $stockOpname)
+    {
+        //
+    }
+
+    public function bukuPersediaan(Request $request)
+    {
+        $bulan  = $request->bulan;
+        $tahun  = $request->tahun;
+        $itemKode = $request->daftar_atk_kode;
+
+        // Tentukan range tanggal jika bulan & tahun ada
+        $start = null;
+        $end   = null;
+
+        if ($bulan && $tahun) {
+            $start = Carbon::create($tahun, $bulan)->startOfMonth();
+            $end   = Carbon::create($tahun, $bulan)->endOfMonth();
+        }
+
+        $items = DaftarAtk::query()
+            ->withSum(['stockOpnames as total_perolehan' => function ($q) use ($start, $end) {
+                $q->where('type', 'Perolehan');
+
+                if ($start && $end) {
+                    $q->whereBetween('created_at', [$start, $end]);
+                }
+            }], 'quantity')
+
+            ->withSum(['stockOpnames as total_pemakaian' => function ($q) use ($start, $end) {
+                $q->where('type', 'Pemakaian');
+
+                if ($start && $end) {
+                    $q->whereBetween('created_at', [$start, $end]);
+                }
+            }], 'quantity')
+
+            ->when($itemKode, fn($q) => $q->where('kode_atk', $itemKode))
+            ->orderBy('name', 'asc')
+            ->get()
+            ->map(function ($item) {
+                $item->sisa = ($item->total_perolehan ?? 0) - ($item->total_pemakaian ?? 0);
+                return $item;
+            });
+
+        return Inertia::render('admin/daftaratk/buku-persediaan', [
+            'Persediaan' => $items->map(fn($i) => [
+                'id'        => $i->id,
+                'name'      => $i->name,
+                'kode_atk'  => $i->kode_atk,
+                'kategori'  => $i->category,
+                'satuan'    => $i->satuan,
+                'jumlah'    => (int) ($i->total_perolehan ?? 0),
+                'pemakaian' => (int) ($i->total_pemakaian ?? 0),
+                'saldo'     => (int) ($i->sisa ?? 0),
+            ]),
+            'filters' => $request->only(['bulan', 'tahun', 'daftar_atk_id']),
+        ]);
+    }
+
+    public function detailPemakaian(Request $request)
+    {
+        $kodeAtk = $request->kodeAtk;
+        $bulan   = $request->bulan;
+        $tahun   = $request->tahun;
+
+        $start = Carbon::create($tahun, $bulan)->startOfMonth();
+        $end   = Carbon::create($tahun, $bulan)->endOfMonth();
+
+        $data = StockOpname::query()
+            ->where('type', 'Pemakaian')
+            ->whereBetween('created_at', [$start, $end])
+            ->whereHas(
+                'daftarAtk',
+                fn($q) =>
+                $q->where('kode_atk', $kodeAtk)
+            )
+            ->with([
+                'daftarAtk:id,name,satuan,kode_atk',
+                'permintaanAtk.pemesan.pegawai',
+            ])
+            ->get()
+            ->map(fn($row) => [
+                'tanggal'        => $row->created_at,
+                'jumlah'         => $row->quantity,
+                'harga'         => $row->unit_price,
+                'total'         => $row->total_price,
+                'itemAtk'       => $row->daftarAtk,
+                'satuan'         => $row->daftarAtk->satuan,
+                'digunakan_oleh' => $row->permintaanAtk?->pemesan->pegawai?->name,
+                'unit_kerja'     => $row->permintaanAtk?->kode_unit,
+                'keterangan'     => $row->permintaanAtk?->deskripsi,
+            ]);
+
+        return Inertia::render('admin/daftaratk/detail-pemakain', [
+            'Persediaan' => $data,
+            'filters' => $request->only(['kode_atk', 'bulan', 'tahun']),
+        ]);
+    }
+}
