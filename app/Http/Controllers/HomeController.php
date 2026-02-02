@@ -1,0 +1,148 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\KerusakanGedung;
+use App\Models\PemesananRuangRapat;
+use App\Models\PermintaanAtk;
+use Inertia\Inertia;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
+
+class HomeController extends Controller
+{
+    private $queryRapat;
+    private $queryKerusakan;
+    private $queryAtk;
+
+    public function __construct()
+    {
+        $user = Auth::id();
+
+        // Ambil Booking Rapat + relasi pemesan dan ruangans
+        $this->queryRapat = PemesananRuangRapat::with(['pemesan.pegawai.biro', 'ruangans'])
+            ->orderByDesc('created_at')
+            ->get()
+            ->where('user_id', $user)
+            ->take(7)
+            ->map(fn($r) => [
+                'id'                => 'booking',
+                'type'              => 'Ruangan Rapat',
+                'is_read'           => $r->is_read,
+                'code'              => $r->kode_booking,
+                'title'             => $r->ruangans->nama_ruangan,
+                'ruangans'          => $r->ruangans,
+                'info'              => $r->deskripsi,
+                'daftarkebutuhan'   => null,
+                'subtitle'          => Carbon::parse($r->tanggal_penggunaan)->translatedFormat('d F Y'),
+                'created_at'        => $r->created_at,
+                'status'            => $r->status,
+                'user'              => $r->pemesan,
+                'unit_kerja'        => $r->unit_kerja,
+                'no_hp'             => $r->no_hp,
+                'deskripsi'         => $r->deskripsi,
+                'jenis_rapat'       => $r->jenis_rapat,
+                'is_makanan_berat'  => $r->is_makanan_berat,
+                'is_makanan_ringan'  => $r->is_makanan_ringan,
+                'is_ti_support'     => $r->is_ti_support,
+                'is_hybrid'         => $r->is_hybrid,
+                'picture'           => null,
+                'keterangan'        => $r->keterangan,
+                'time' => substr($r->jam_mulai, 0, 5) . ' - ' . substr($r->jam_selesai, 0, 5),
+                'kategori'           => null,
+            ]);
+
+        // Ambil data kerusakan + relasi pemesan
+        $this->queryKerusakan = KerusakanGedung::with(['pelapor.pegawai.biro', 'kategori'])
+            ->orderByDesc('created_at')
+            ->get()
+            ->where('user_id', $user)
+            ->take(7)
+            ->map(fn($k) => [
+                'id'                 => 'damage',
+                'type'               => 'Kerusakan',
+                'is_read'            => $k->is_read,
+                'code'               => $k->kode_pelaporan,
+                'title'              => $k->item,
+                'ruangans'           => null,
+                'info'               => $k->lokasi,
+                'daftarkebutuhan'    => null,
+                'subtitle'           => $k->urgensi,
+                'created_at'         => $k->created_at,
+                'status'             => $k->status,
+                'user'               => $k->pelapor,
+                'unit_kerja'         => $k->unit_kerja,
+                'no_hp'              => $k->no_hp,
+                'deskripsi'          => $k->deskripsi,
+                'picture'            => $k->picture,
+                'keterangan'         => $k->keterangan,
+                'time'               => null,
+                'kategori'           => $k->kategori,
+                'is_makanan_berat'     => null,
+                'is_makanan_ringan'     => null,
+                'is_ti_support'     => null,
+                'is_hybrid'         => null,
+                'jenis_rapat'         => null,
+            ]);
+
+        // Ambil data permintaan ATK + relasi pemesan
+        $this->queryAtk = PermintaanAtk::with('pemesan.pegawai.biro')
+            ->orderByDesc('created_at')
+            ->get()
+            ->where('user_id', $user)
+            ->take(7)
+            ->map(fn($a) => [
+                'id'                 => 'supplies',
+                'type'               => 'ATK',
+                'is_read'            => $a->is_read,
+                'code'               => $a->kode_pelaporan,
+                'title'              => count($a->daftar_kebutuhan) . ' item',
+                'ruangans'           => null,
+                'info'               => collect($a->daftar_kebutuhan)->map(fn($item) => "{$item['name']} {$item['requested']} {$item['satuan']}")->join(', '),
+                'daftarkebutuhan'    => $a->daftar_kebutuhan,
+                'subtitle'           => $a->urgensi,
+                'created_at'         => $a->created_at,
+                'status'             => $a->status,
+                'user'               => $a->pemesan,
+                'unit_kerja'         => $a->unit_kerja,
+                'no_hp'              => $a->no_hp,
+                'deskripsi'          => $a->deskripsi,
+                'picture'            => null,
+                'keterangan'         => $a->keterangan,
+                'time'               => null,
+                'kategori'           => null,
+                'is_makanan_ringan'     => null,
+                'is_ti_support'     => null,
+                'is_ti_support'     => null,
+                'is_hybrid'         => null,
+                'jenis_rapat'         => null,
+            ]);
+
+        // Gabungkan semuanya, urutkan, batasi 10
+    }
+    public function index()
+    {
+
+        $requestHistory = $this->queryRapat
+            ->concat($this->queryKerusakan)
+            ->concat($this->queryAtk)
+            ->sortByDesc('created_at')
+            ->take(3)
+            ->values();
+
+        return Inertia::render('biroumum/home/page', compact('requestHistory'));
+    }
+
+
+    public function history()
+    {
+        $requestHistory = $this->queryRapat
+            ->concat($this->queryKerusakan)
+            ->concat($this->queryAtk)
+            ->sortByDesc('created_at')
+            ->take(7)
+            ->values();
+
+        return Inertia::render('biroumum/history/page', compact('requestHistory'));
+    }
+}
