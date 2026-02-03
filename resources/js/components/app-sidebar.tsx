@@ -1,5 +1,16 @@
 import { Link } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid } from 'lucide-react';
+import {
+    BookOpen,
+    Building2,
+    CalendarClock,
+    CarFront,
+    ClipboardList,
+    Folder,
+    Hammer,
+    LayoutGrid,
+    LockKeyhole,
+    PackageCheck,
+} from 'lucide-react';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -18,22 +29,61 @@ import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
     {
-        title: 'Dashboard',
+        title: 'Home',
         href: dashboard(),
         icon: LayoutGrid,
+        permission: 'view_admin_dashboard',
+    },
+    {
+        title: 'Pemesanan Ruang Rapat',
+        href: route('ruangrapat.index'),
+        icon: CalendarClock,
+        permission: 'view_bookings',
+    },
+    {
+        title: 'Kerusakan Gedung',
+        href: route('kerusakangedung.index'),
+        icon: Hammer,
+        permission: 'view_damages',
+    },
+    {
+        title: 'Permintaan ATK',
+        href: route('permintaanatk.index'),
+        icon: ClipboardList,
+        permission: 'view_supplies',
+    },
+    {
+        title: 'Permintaan Kendaraan',
+        href: '#', // Ganti nanti dengan route('permintaankendaraan.index') jika aktif
+        icon: CarFront,
+        permission: 'view_vehicle_requests',
     },
 ];
 
 const footerNavItems: NavItem[] = [
     {
-        title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
-        icon: Folder,
+        title: 'Manajemen Ruangan',
+        href: route('rooms.index'),
+        icon: Building2,
+        permission: 'view_rooms',
     },
     {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
-        icon: BookOpen,
+        title: 'Manajemen ATK',
+        href: route('daftaratk.index'),
+        icon: PackageCheck,
+        permission: 'view_atk',
+    },
+    {
+        title: 'Kategori Kerusakan',
+        href: route('daftarkerusakan.index'),
+        icon: Hammer,
+        permission: 'view_category_damages',
+    },
+    {
+        title: 'Pengaturan Akses',
+        href: route('roles.index'),
+        icon: LockKeyhole,
+        permission: 'management_access',
     },
 ];
 
