@@ -11,8 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('daftar_atks', function (Blueprint $table) {
-            $table->id();
+        Schema::create('biros', function (Blueprint $table) {
+            $table->string('kode_biro')->primary();
+            $table->string('nama_biro')->nullable();
+            $table->string('kode_deputi')->nullable(); // FK string
+
             $table->timestamps();
         });
     }
@@ -22,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('daftar_atks');
+        Schema::dropIfExists('biros');
     }
 };

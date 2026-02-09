@@ -11,8 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('permintaan_atks', function (Blueprint $table) {
-            $table->id();
+        Schema::create('units', function (Blueprint $table) {
+            $table->string('kode_unit')->primary();
+            $table->string('nama_unit')->nullable();
+            $table->string('kode_instansi')->nullable(); // FK string
+            $table->string('kode_cabang')->nullable();
+
             $table->timestamps();
         });
     }
@@ -22,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('permintaan_atks');
+        Schema::dropIfExists('units');
     }
 };

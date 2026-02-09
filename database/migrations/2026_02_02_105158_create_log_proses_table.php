@@ -13,6 +13,11 @@ return new class extends Migration
     {
         Schema::create('log_proses', function (Blueprint $table) {
             $table->id();
+
+            $table->string('title');
+            $table->date('tanggal');
+            $table->foreignId('kerusakan_gedung_id')->nullable()->constrained()->nullOnDelete();
+
             $table->timestamps();
         });
     }

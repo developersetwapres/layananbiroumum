@@ -13,11 +13,27 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        $this->call([
+            UnitSeeder::class,
+            BiroSeeder::class,
+            // RolePermissionSeeder::class,
+            DaftarRuanganSeeder::class,
+            KategoriKerusakanSeeder::class,
+            DaftarAtkSeeder::class,
+            UserSeeder::class,
+            // MasterPegawaiSeeder::class
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+            //kalau sudah ada pegawai di master pegawai dan di user, jangan jalankan seeder ini
+            // AssignRolesSeeder::class,
         ]);
+
+        // User::factory(10)->create();
+        // User::factory()->admin()->create();
+        // User::factory()->pegawai()->create();
+        // User::factory()->atasan()->create();
+
+        // PermintaanAtk::factory(50)->create();
+        // PemesananRuangRapat::factory(50)->create();
+        // KerusakanGedung::factory(50)->create();
     }
 }

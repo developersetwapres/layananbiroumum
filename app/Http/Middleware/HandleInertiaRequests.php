@@ -2,7 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\DaftarAtk;
+use App\Models\Notification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -35,13 +38,47 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        if (Auth::check()) {
+            $user = Auth::user()->load('pegawai.biro');
+            // $permissions = $user->getAllPermissions()->pluck('name')->toArray();
+            $permissions = [];
+        } else {
+            $user = null;
+            $permissions = [];
+        }
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
-            'auth' => [
-                'user' => $request->user(),
-            ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+
+            'notifFromServer' => Notification::latest()->get(),
+
+
+            'flash' => [
+                'message'  => fn() => $request->session()->get('message'),
+                'availableRoom' => fn() => $request->session()->get('availableRoom'),
+            ],
+
+            'kategoriAtk' => DaftarAtk::select('category')->distinct()->pluck('category'),
+
+            'auth' => [
+                'user' => $user ? [
+                    'nip' => $user->pegawai->nip ?? null,
+                    'name' => $user->pegawai->name ?? null,
+                    'email' => $user->email ?? null,
+                    'unit' => $user->pegawai?->unit ? [
+                        'kode_unit' => $user->pegawai?->unit->kode_unit,
+                        'nama_unit' => $user->pegawai?->unit->nama_unit,
+                    ] : null,
+                    'biro' => $user->pegawai?->biro ? [
+                        'kode_biro' => $user->pegawai?->biro->kode_biro,
+                        'nama_biro' => $user->pegawai?->biro->nama_biro,
+                    ] : null,
+                ] : null,
+                'permissions' => $permissions,
+            ],
+
         ];
     }
 }

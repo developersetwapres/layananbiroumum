@@ -26,6 +26,12 @@ import {
 import { dashboard } from '@/routes';
 import type { NavItem } from '@/types';
 import AppLogo from './app-logo';
+import { index as indexRupat } from '@/routes/ruangrapat';
+import { index as indexKerusakan } from '@/routes/kerusakangedung';
+import { index as indexAtk } from '@/routes/permintaanatk';
+import { index as imdexRooms } from '@/routes/rooms';
+import { index as daftarAtk } from '@/routes/daftaratk';
+import { index as daftarKerusakan } from '@/routes/daftarkerusakan';
 
 const mainNavItems: NavItem[] = [
     {
@@ -36,19 +42,19 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'Pemesanan Ruang Rapat',
-        href: route('ruangrapat.index'),
+        href: indexRupat.url(),
         icon: CalendarClock,
         permission: 'view_bookings',
     },
     {
         title: 'Kerusakan Gedung',
-        href: route('kerusakangedung.index'),
+        href: indexKerusakan.url(),
         icon: Hammer,
         permission: 'view_damages',
     },
     {
         title: 'Permintaan ATK',
-        href: route('permintaanatk.index'),
+        href: indexAtk.url(),
         icon: ClipboardList,
         permission: 'view_supplies',
     },
@@ -63,25 +69,25 @@ const mainNavItems: NavItem[] = [
 const footerNavItems: NavItem[] = [
     {
         title: 'Manajemen Ruangan',
-        href: route('rooms.index'),
+        href: imdexRooms.url(),
         icon: Building2,
         permission: 'view_rooms',
     },
     {
         title: 'Manajemen ATK',
-        href: route('daftaratk.index'),
+        href: daftarAtk.url(),
         icon: PackageCheck,
         permission: 'view_atk',
     },
     {
         title: 'Kategori Kerusakan',
-        href: route('daftarkerusakan.index'),
+        href: daftarKerusakan.url(),
         icon: Hammer,
         permission: 'view_category_damages',
     },
     {
         title: 'Pengaturan Akses',
-        href: route('roles.index'),
+        href: '/',
         icon: LockKeyhole,
         permission: 'management_access',
     },
