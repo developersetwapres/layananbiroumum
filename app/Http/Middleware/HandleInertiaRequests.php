@@ -40,8 +40,7 @@ class HandleInertiaRequests extends Middleware
     {
         if (Auth::check()) {
             $user = Auth::user()->load('pegawai.biro');
-            // $permissions = $user->getAllPermissions()->pluck('name')->toArray();
-            $permissions = [];
+            $permissions = $user->getAllPermissions()->pluck('name')->toArray();
         } else {
             $user = null;
             $permissions = [];

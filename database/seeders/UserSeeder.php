@@ -68,7 +68,7 @@ class UserSeeder extends Seeder
                 'password' => Hash::make($value['nip']),
             ]);
 
-            // $user->assignRole($value['role'] ?? 'pegawai');
+            $user->assignRole($value['role'] ?? 'pegawai');
 
             MasterPegawai::create([
                 'nip' => $value['nip'],
